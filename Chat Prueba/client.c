@@ -14,23 +14,103 @@
 #include <errno.h>
 #include <pthread.h>
 
+char *name;
+int socketfd = 0;
+volatile sig_atomic_t flag = 0;
+
+
+void str_overwrite_stdout(){
+	printf("\r%s", "> ");
+	fflush(stdout);
+}
+
+void str_trim_lf(char* arr, int length){
+	for(int i = 0; i < length; i++){
+		if(arr[i] == '\n'){
+			arr[i] = '\0';
+			break;
+		}		
+	}
+}
+
+void catch_ctrl_c_and_exit(){
+	flag = 1;
+}
+
+void recv_msg_handler(){
+	char message[200] = {};
+	while(1){
+		int receive = recv(socketfd, message, 200, 0);
+		
+		if(receive > 0){
+			printf("%s ", message);
+			str_overwrite_stdout();
+		}else if(receive == 0){
+			break;
+		}
+		bzero(message, 200);
+	}
+}
+
+void send_msg_handler(){
+	char buffer[200] = {};
+	char message[8000] = {};
+	
+	while(1){
+		str_overwrite_stdout();
+		fgets(buffer, 200, stdin);
+		str_trim_lf(buffer, 200);
+		
+		if(strcmp(buffer, "salir") == 0){
+			break;
+		} else {
+			sprintf(message, "%s: %s\n", name, buffer);
+			send(socketfd, message, strlen(message), 0);
+		}
+	bzero(buffer, 200);
+	bzero(message, 8000);
+	}
+	catch_ctrl_c_and_exit(2);
+}
+
 int main(int argc, char *argv[])
 {
 	int opcion;
 	int estado;
 	int repetir = 1;
-	int regresar = 0;
 	int result;
 	char username2chat[200];
-	char mensaje[8000];
-	char salir[] = "salir";
 	
-	char *name;
+	char *host;
+	int listenfd = 0, connfd = 0;
     	struct sockaddr_in serverAddr;
     	struct sockaddr_in cliAddr;
-    	struct hostent *host;
    	long port;
    	pthread_t tid;
+	
+	if(argc != 4)
+	{	
+		fprintf(stderr, "./client [username] [host] [port]\n");
+		exit(1);
+	}
+	
+	if(host == NULL)
+	{
+		fprintf(stderr, "Couldn't get host name\n");
+		exit(1);
+	}
+	
+	name = argv[1];
+	host = argv[2];
+	port = atoi(argv[3]);
+	
+	signal(SIGINT, catch_ctrl_c_and_exit);
+	str_trim_lf(name, strlen(name));
+	
+	serverAddr.sin_family = AF_INET;
+	serverAddr.sin_addr.s_addr = inet_addr(host);
+	serverAddr.sin_port = htons(port);
+	
 	
 	/*
 	struct json_object *jobj = json_object_new_object();
@@ -53,25 +133,6 @@ int main(int argc, char *argv[])
 	printf("jobj from str:\n---\n%s\n---\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 	*/
 	
-	if(argc != 4)
-	{	
-		fprintf(stderr, "./client [username] [host] [port]\n");
-		exit(1);
-	}
-	
-	name = argv[1];
-	if((host = gethostbyname(argv[2])) == NULL)
-	{
-		fprintf(stderr, "Couldn't get host name\n");
-		exit(1);
-	}
-	
-	port = atoi(argv[3];
-	if((socketFd = socket(AF_INET, SOCK_STREAM, 0))== -1)
-	{
-		fprintf(stderr, "Couldn't create socket\n");
-		exit(1);
-	}
 	
 	while (repetir == 1) {
 
@@ -87,24 +148,39 @@ int main(int argc, char *argv[])
 
 		printf("\nIngrese una opcion: ");
 		scanf("%d", &opcion);
+		
 
 		switch (opcion) {
-			case 1:
-				// Lista de instrucciones de la opción 1 
-				while (regresar == 0){
-					printf("Mensaje: ");
-					scanf("%s", &mensaje);
-					result = strcmp(mensaje, salir);
-					if (result == 0){
-						regresar = 1;
-					}else{
-						printf("The string you entered is : %s\n", mensaje);
-						char mensaje[8000];
+			case 1:		
+				socketfd = socket(AF_INET, SOCK_STREAM, 0);
+				
+				int err = connect(socketfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+				if (err == -1){
+					printf("ERROR: connect\n");
+					return EXIT_FAILURE;
+				}		
+				send(socketfd, name, strlen(name), 0);
+	
+				pthread_t send_msg_thread;
+				if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
+					printf("ERROR: pthread\n");
+					return EXIT_FAILURE;
+				}
+
+				pthread_t recv_msg_thread;
+				if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){
+					printf("ERROR: pthread\n");
+					return EXIT_FAILURE;
+				}
+				
+				while(1){
+					if(flag){
+						printf("\nBye\n");
+						break;
 					}
 				}
-				regresar = 0;                
+				close(socketfd);             
 				break;
-
 			case 2:
 				// Lista de instrucciones de la opción 2                
 				printf("Nombre del usuario para entablar conversacion: ");
@@ -149,7 +225,6 @@ int main(int argc, char *argv[])
 				break;
 			case 7:
 				repetir = 0;
-				break;
 		}	
 	}
 	return 0;
