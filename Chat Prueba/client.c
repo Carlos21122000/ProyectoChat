@@ -13,8 +13,11 @@
 #include <signal.h>
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
 
 char *name;
+char *connection_date;
+char *instruction;
 int socketfd = 0;
 volatile sig_atomic_t flag = 0;
 
@@ -87,6 +90,14 @@ int main(int argc, char *argv[])
     	struct sockaddr_in cliAddr;
    	long port;
    	pthread_t tid;
+   	
+   	time_t current_time;
+    	time(&current_time);
+    	connection_date = ctime(&current_time);
+	
+	name = argv[1];
+	host = argv[2];
+	port = atoi(argv[3]);
 	
 	if(argc != 4)
 	{	
@@ -99,10 +110,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Couldn't get host name\n");
 		exit(1);
 	}
-	
-	name = argv[1];
-	host = argv[2];
-	port = atoi(argv[3]);
 	
 	signal(SIGINT, catch_ctrl_c_and_exit);
 	str_trim_lf(name, strlen(name));
@@ -133,6 +140,31 @@ int main(int argc, char *argv[])
 	printf("jobj from str:\n---\n%s\n---\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 	*/
 	
+	socketfd = socket(AF_INET, SOCK_STREAM, 0);
+				
+	int err = connect(socketfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+	if (err == -1){
+		printf("ERROR: connect\n");
+		return EXIT_FAILURE;
+	}		
+	
+	struct json_object *init_conection = json_object_new_object();
+	json_object_object_add(init_conection, "request", json_object_new_string("INIT_CONEX"));
+	struct json_object *body = json_object_new_array();
+	json_object_array_add(body,json_object_new_string(name));
+	json_object_array_add(body,json_object_new_string(connection_date));
+	json_object_object_add(init_conection,"body", body);
+	
+	instruction = json_object_to_json_string_ext(init_conection, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+	
+	send(socketfd, instruction, strlen(instruction), 0);
+	/*printf("jobj from str:\n---\n%s\n---\n", instruction);*/
+	
+	/*
+	struct json_object *prueba_d = json_object_new_object();
+	prueba_d = json_tokener_parse(instruction);
+	printf("jobj from str:\n---\n%s\n---\n", json_object_to_json_string_ext(prueba_d, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+	*/
 	
 	while (repetir == 1) {
 
@@ -152,15 +184,6 @@ int main(int argc, char *argv[])
 
 		switch (opcion) {
 			case 1:		
-				socketfd = socket(AF_INET, SOCK_STREAM, 0);
-				
-				int err = connect(socketfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
-				if (err == -1){
-					printf("ERROR: connect\n");
-					return EXIT_FAILURE;
-				}		
-				send(socketfd, name, strlen(name), 0);
-	
 				pthread_t send_msg_thread;
 				if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
 					printf("ERROR: pthread\n");
@@ -178,8 +201,7 @@ int main(int argc, char *argv[])
 						printf("\nBye\n");
 						break;
 					}
-				}
-				close(socketfd);             
+				}            
 				break;
 			case 2:
 				// Lista de instrucciones de la opción 2                
@@ -224,6 +246,7 @@ int main(int argc, char *argv[])
 			              
 				break;
 			case 7:
+				close(socketfd); 
 				repetir = 0;
 		}	
 	}
