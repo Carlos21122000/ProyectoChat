@@ -17,6 +17,8 @@
 static _Atomic unsigned int cli_count = 0;
 static int uid = 10;
 char *json_instruction;
+char *connection_date;
+char *response;
 
 /* Client structure */
 typedef struct{
@@ -106,7 +108,8 @@ void send_message(char *s, int uid){
 /* Handle all communication with the client */
 void *handle_client(void *arg){
 	char buff_out[BUFFER_SZ];
-	char name[32];
+	char *name;
+	char *connection_date;
 	int leave_flag = 0;
 
 	cli_count++;
@@ -127,14 +130,33 @@ void *handle_client(void *arg){
 			struct json_object *request;
 			json_object_object_get_ex(instruction, "request", &request);
 			
+			struct json_object *body;
+			json_object_object_get_ex(instruction, "body", &body);
+			
 			printf("%s\n", json_object_get_string(request));
 			printf("\n");
 			opcion = json_object_get_string(request);
 			printf("%s\n", opcion);
 			printf("\n");
 			
-			if(strcmp(opcion, "INIT_CONEX") == 0){
-				printf("La mundial sin messi, ni ronaldo ni neymar\n");
+			if(strcmp(opcion, "INIT_CONEX") == 0){		
+				name = json_object_get_string(json_object_array_get_idx(body, 0));
+				strcpy(cli->name, name);
+				
+				connection_date = json_object_get_string(json_object_array_get_idx(body, 1));
+				strcpy(cli->ctime, connection_date);
+				
+				printf("Name of user: %s\n",cli->name);
+				printf("Se unio a las: %s\n",cli->ctime);
+				
+				struct json_object *instructionJ = json_object_new_object();
+				json_object_object_add(instructionJ, "response", json_object_new_string("INIT_CONEX"));
+				json_object_object_add(instructionJ, "code", json_object_new_int(200));
+				
+				response = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				printf("SSocket %d\n",cli->sockfd);
+				send(cli->sockfd, response, strlen(response), 0);
+				
 			}
 			if(strcmp(opcion, "GET_CHAT") == 0){
 				printf("Noches\n");
@@ -264,7 +286,6 @@ int main(int argc, char **argv){
 		cli->address = cli_addr;
 		cli->sockfd = connfd;
 		cli->uid = uid++;
-		cli->ctime = ctime(&current_time);
 		cli->ustatus = 0;
 
 		/* Add client to the queue and fork thread */

@@ -15,12 +15,15 @@
 #include <pthread.h>
 #include <time.h>
 
+#define BUFFER_SZ 8000
+
 char *name;
 char *connection_date;
 char *message_date;
 char *instruction;
 char username2chat[200];
 char *getuserinfo;
+char buff_out[BUFFER_SZ];
 int socketfd = 0;
 int estado[5];
 volatile sig_atomic_t flag = 0;
@@ -177,6 +180,12 @@ int main(int argc, char *argv[])
 	
 	send(socketfd, instruction, strlen(instruction), 0);
 	json_object_put(init_conection);
+	
+	int receive = recv(socketfd, buff_out, BUFFER_SZ, 0);		
+	if(receive > 0){
+		printf("%s ", buff_out);
+	}
+	bzero(buff_out, BUFFER_SZ);
 	/*printf("jobj from str:\n---\n%s\n---\n", instruction);*/
 	
 	/*
