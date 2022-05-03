@@ -17,8 +17,12 @@
 
 char *name;
 char *connection_date;
+char *message_date;
 char *instruction;
+char username2chat[200];
+char *getuserinfo;
 int socketfd = 0;
+int estado[5];
 volatile sig_atomic_t flag = 0;
 
 
@@ -63,15 +67,31 @@ void send_msg_handler(){
 		str_overwrite_stdout();
 		fgets(buffer, 200, stdin);
 		str_trim_lf(buffer, 200);
+		struct json_object *instructionJ = json_object_new_object();
+		
+		time_t current_time;
+	    	time(&current_time);
+	    	message_date = ctime(&current_time);
 		
 		if(strcmp(buffer, "salir") == 0){
 			break;
-		} else {
+		} else {		    	
+			json_object_object_add(instructionJ, "request", json_object_new_string("POST_CHAT"));
+			struct json_object *body = json_object_new_array();
+			json_object_array_add(body,json_object_new_string(message));
+			json_object_array_add(body,json_object_new_string(name));
+			json_object_array_add(body,json_object_new_string(message_date));
+			json_object_array_add(body,json_object_new_string("all"));
+			json_object_object_add(instructionJ,"body", body);
+			
+			instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+			
 			sprintf(message, "%s: %s\n", name, buffer);
-			send(socketfd, message, strlen(message), 0);
+			send(socketfd, instruction, strlen(instruction), 0);
 		}
 	bzero(buffer, 200);
 	bzero(message, 8000);
+	json_object_put(instructionJ);
 	}
 	catch_ctrl_c_and_exit(2);
 }
@@ -79,10 +99,8 @@ void send_msg_handler(){
 int main(int argc, char *argv[])
 {
 	int opcion;
-	int estado;
 	int repetir = 1;
 	int result;
-	char username2chat[200];
 	
 	char *host;
 	int listenfd = 0, connfd = 0;
@@ -158,6 +176,7 @@ int main(int argc, char *argv[])
 	instruction = json_object_to_json_string_ext(init_conection, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
 	
 	send(socketfd, instruction, strlen(instruction), 0);
+	json_object_put(init_conection);
 	/*printf("jobj from str:\n---\n%s\n---\n", instruction);*/
 	
 	/*
@@ -167,7 +186,7 @@ int main(int argc, char *argv[])
 	*/
 	
 	while (repetir == 1) {
-
+		struct json_object *instructionJ = json_object_new_object();
 		// Texto del menú que se verá cada vez
 		printf("\n\nMenu de Opciones");
 		printf("\n1. Chat con todos lo usuarios");
@@ -184,6 +203,14 @@ int main(int argc, char *argv[])
 
 		switch (opcion) {
 			case 1:		
+				json_object_object_add(instructionJ, "request", json_object_new_string("GET_CHAT"));
+				json_object_object_add(instructionJ, "body", json_object_new_string("all"));
+				
+				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				
+				send(socketfd, instruction, strlen(instruction), 0);
+				json_object_put(instructionJ);
+				
 				pthread_t send_msg_thread;
 				if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
 					printf("ERROR: pthread\n");
@@ -203,15 +230,20 @@ int main(int argc, char *argv[])
 					}
 				}            
 				break;
-			case 2:
-				// Lista de instrucciones de la opción 2                
+			case 2:             
 				printf("Nombre del usuario para entablar conversacion: ");
 				scanf("%s", &username2chat);
-				printf("The string you entered is : %s\n", username2chat);
+				json_object_object_add(instructionJ, "request", json_object_new_string("GET_CHAT"));
+				json_object_object_add(instructionJ, "body", json_object_new_string(username2chat));
+				
+				instruction = json_object_to_json_string_ext(init_conection, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				
+				send(socketfd, instruction, strlen(instruction), 0);
+				json_object_put(instructionJ);
 				char username2chat[200];
 				break;
 
-			case 3:
+			case 3:   
 				// Lista de instrucciones de la opción 3   
 				printf("\nOpciones de status");
 				printf("\n1. OCUPADO");
@@ -219,35 +251,62 @@ int main(int argc, char *argv[])
 				printf("\n3. INACTIVO");  
 				printf("\nIngrese una opcion: ");           
             			scanf("%d", &estado);
-				switch(estado){
+            			
+            			json_object_object_add(instructionJ, "request", json_object_new_string("PUT_STATUS"));
+				json_object_object_add(instructionJ, "body", json_object_new_int(*estado));
+				
+				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				
+				send(socketfd, instruction, strlen(instruction), 0);
+				json_object_put(instructionJ);
+            			
+				switch(*estado){
 					case 1:
 						printf("\nAhora su estado es OCUPADO");
 						break;
 					case 2:
-						printf("\nAhora su estado es ACTIVO");
+						printf("\nAhora su estado es ACTIVO");						
 						break;
 					case 3:
-						printf("\nAhora su estado es INACTIVO");
+						printf("\nAhora su estado es INACTIVO");						
 						break;
-					default:
-						printf("\nEsa opcion no existe. Volviendo al menu...\n");
-						sleep(1);
 				}
+				break;
 			case 4:
-				// Lista de instrucciones de la opción 4                
-               
+				json_object_object_add(instructionJ, "request", json_object_new_string("GET_USER"));
+				json_object_object_add(instructionJ, "body", json_object_new_string("all"));
+				
+				
+				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				
+				send(socketfd, instruction, strlen(instruction), 0);
+				json_object_put(instructionJ);
 				break;
 			case 5:
-				// Lista de instrucciones de la opción 5              
-				                
+				printf("Nombre del usuario para entablar conversacion: ");
+				scanf("%s", &getuserinfo);
+				json_object_object_add(instructionJ, "request", json_object_new_string("GET_USER"));
+				json_object_object_add(instructionJ, "body", json_object_new_string(getuserinfo));
+				
+				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				
+				send(socketfd, instruction, strlen(instruction), 0);
+				json_object_put(instructionJ);             
 				break;
 			case 6:
 				// Lista de instrucciones de la opción 6                
 			              
 				break;
-			case 7:
+			case 7:  
+				json_object_object_add(instructionJ, "request", json_object_new_string("END_CONEX"));				
+				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				
+				send(socketfd, instruction, strlen(instruction), 0);
 				close(socketfd); 
 				repetir = 0;
+				break;
+			default:
+				printf("Opcion Inexistente...");
 		}	
 	}
 	return 0;

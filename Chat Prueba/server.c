@@ -24,6 +24,8 @@ typedef struct{
 	int sockfd;
 	int uid;
 	char name[32];
+	char ctime[32];
+	int ustatus;
 } client_t;
 
 client_t *clients[MAX_CLIENTS];
@@ -111,25 +113,38 @@ void *handle_client(void *arg){
 	client_t *cli = (client_t *)arg;
 	
 	while(1){
+		bzero(buff_out, BUFFER_SZ);
+		char *opcion;
 		if (leave_flag) {
 			break;
 		}
 		int receive = recv(cli->sockfd, buff_out, BUFFER_SZ, 0);
 		if (receive > 0){
-			printf("%s", buff_out, "\n");
-			printf("%d", strlen(buff_out), "\n");
 			json_instruction = buff_out;
-			
-			printf("%s", json_instruction);
-			
 			struct json_object *instruction = json_object_new_object();
 			instruction = json_tokener_parse(json_instruction);
-			printf("jobj from str:\n---\n%s\n---\n", json_object_to_json_string_ext(instruction, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 			
-			leave_flag = 1;
-		} else {
-			printf("ERROR: -1\n");
-			leave_flag = 1;
+			struct json_object *request;
+			json_object_object_get_ex(instruction, "request", &request);
+			
+			printf("%s\n", json_object_get_string(request));
+			printf("\n");
+			opcion = json_object_get_string(request);
+			printf("%s\n", opcion);
+			printf("\n");
+			
+			if(strcmp(opcion, "INIT_CONEX") == 0){
+				printf("La mundial sin messi, ni ronaldo ni neymar\n");
+			}
+			if(strcmp(opcion, "GET_CHAT") == 0){
+				printf("Noches\n");
+			}
+			if(strcmp(opcion, "PUT_STATUS") == 0){
+				printf("Dias\n");
+			}
+			if(strcmp(opcion, "END_CONEX") == 0){
+				leave_flag = 1;
+			}
 		}
 		bzero(buff_out, BUFFER_SZ);
 	}
@@ -239,12 +254,18 @@ int main(int argc, char **argv){
 			close(connfd);
 			continue;
 		}
+		
+		time_t current_time;
+    		time(&current_time);
+    		connection_date = ctime(&current_time);
 
 		/* Client settings */
 		client_t *cli = (client_t *)malloc(sizeof(client_t));
 		cli->address = cli_addr;
 		cli->sockfd = connfd;
 		cli->uid = uid++;
+		cli->ctime = ctime(&current_time);
+		cli->ustatus = 0;
 
 		/* Add client to the queue and fork thread */
 		queue_add(cli);
