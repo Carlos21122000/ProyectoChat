@@ -361,9 +361,25 @@ int main(int argc, char *argv[])
 				}				         
 				break;
 			case 6:
-				// Lista de instrucciones de la opción 6                
-			              
-				break;
+				// Lista de instrucciones de la opciÃ³n 6                
+			        printf("\n*********************************Bienvenido*********************************"); 
+			        printf("\n");
+			        printf("\nel cliente se ejecuta por medio de: <nombredelcliente> <nombredeusuario> <IPdelservidor> <puertodelservidor> ");    
+			        printf("\nel servidor se ejecuta por medio de: <nombredelservidor> <puertodelservidor> );    
+			        printf("\n");   
+			        printf("\nEl cliente es capaz de realizar:); 
+			        printf("\nchateo general con usuarios, esta es parte de la opcion 1"); 
+			        printf("\nchateo privado con usuarios, esta es parte de la opcion 2"); 
+			        printf("\nel cambio de estado es por parte de la opcion 3");
+			        printf("\nListado de ususarios y su informacion opcion 4");       
+			        printf("\n");   
+			        printf("\nEl servidor es capaz de realizar:);
+			        printf("\nbroadcasting y mensajes directos); 
+			        printf("\nregistro de usuarios"); 
+			        printf("\neliberacion de usuarios");
+			        printf("\nManejo de status");
+			        printf("\nRespuesta a solicitudes de informacion");    
+				break;              
 			case 7:  
 				json_object_object_add(instructionJ, "request", json_object_new_string("END_CONEX"));				
 				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
