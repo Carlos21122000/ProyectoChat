@@ -164,8 +164,19 @@ void *handle_client(void *arg){
 				response = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
 				send(cli->sockfd, response, strlen(response), 0);				
 			}
-			if(strcmp(opcion, "GET_CHAT") == 0){
-				printf("Noches\n");
+			if(strcmp(opcion, "POST_CHAT") == 0){
+				char message_all[8000];
+				strcpy(message_all, json_object_get_string(json_object_array_get_idx(body, 0)));
+				printf("%s\n", message_all);
+				if(strcmp(message_all, "salir") == 0){
+					sprintf(message_all, "%s ha salido del chat\n", cli->name);
+					printf("%s\n", message_all);
+					send_message(message_all, cli->uid);
+				}else{
+					send_message(message_all, cli->uid);
+					str_trim_lf(message_all, strlen(message_all));
+					printf("%s -> %s\n", message_all, cli->name);
+				}				
 			}
 			if(strcmp(opcion, "PUT_STATUS") == 0){
 				nstatus = json_object_get_string(body);
@@ -182,6 +193,21 @@ void *handle_client(void *arg){
 				uinterest = json_object_get_string(body);
 				struct json_object *instructionJ = json_object_new_object();
 				if(strcmp(uinterest, "all") == 0){
+					rcode = 200;
+					struct json_object *body = json_object_new_array();
+					for(int i=0; i<MAX_CLIENTS; ++i){
+						if(clients[i]){																		
+							struct json_object *couple = json_object_new_array();
+							json_object_array_add(couple,json_object_new_string(clients[i]->name));
+							json_object_array_add(couple,json_object_new_string(clients[i]->ustatus));
+							json_object_array_add(body,couple);								
+						}
+					}															
+					json_object_object_add(instructionJ, "code", json_object_new_int(rcode));
+					json_object_object_add(instructionJ, "response", json_object_new_string("GET_USER"));
+					json_object_object_add(instructionJ,"body", body);
+					response = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+					send(cli->sockfd, response, strlen(response), 0);
 				}else{
 					for(int i=0; i<MAX_CLIENTS; ++i){
 						if(clients[i]){

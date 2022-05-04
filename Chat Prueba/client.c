@@ -52,12 +52,12 @@ void recv_msg_handler(){
 		int receive = recv(socketfd, message, 200, 0);
 		
 		if(receive > 0){
-			printf("%s ", message);
+			printf("%s\n", message);
 			str_overwrite_stdout();
-		}else if(receive == 0){
+		}else{
 			break;
 		}
-		bzero(message, 200);
+		memset(message, 0, sizeof(message));
 	}
 }
 
@@ -67,17 +67,26 @@ void send_msg_handler(){
 	
 	while(1){
 		str_overwrite_stdout();
-		fgets(buffer, 200, stdin);
-		str_trim_lf(buffer, 200);
-		struct json_object *instructionJ = json_object_new_object();
+		fgets(message, 200, stdin);
+		str_trim_lf(message, 200);
 		
-		time_t current_time;
-	    	time(&current_time);
-	    	message_date = ctime(&current_time);
-		
-		if(strcmp(buffer, "salir") == 0){
+		if(strcmp(message, "salir") == 0){
+			struct json_object *instructionJ = json_object_new_object();	    	
+			json_object_object_add(instructionJ, "request", json_object_new_string("POST_CHAT"));
+			struct json_object *body = json_object_new_array();
+			json_object_array_add(body,json_object_new_string(message));
+			json_object_object_add(instructionJ,"body", body);
+			
+			instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+			
+			send(socketfd, instruction, strlen(instruction), 0);
 			break;
-		} else {		    	
+		} else {	
+			time_t current_time;
+		    	time(&current_time);
+		    	message_date = ctime(&current_time);
+		    	
+			struct json_object *instructionJ = json_object_new_object();	    	
 			json_object_object_add(instructionJ, "request", json_object_new_string("POST_CHAT"));
 			struct json_object *body = json_object_new_array();
 			json_object_array_add(body,json_object_new_string(message));
@@ -88,12 +97,10 @@ void send_msg_handler(){
 			
 			instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
 			
-			sprintf(message, "%s: %s\n", name, buffer);
 			send(socketfd, instruction, strlen(instruction), 0);
 		}
 	bzero(buffer, 200);
 	bzero(message, 8000);
-	json_object_put(instructionJ);
 	}
 	catch_ctrl_c_and_exit(2);
 }
@@ -209,7 +216,8 @@ int main(int argc, char *argv[])
 		
 
 		switch (opcion) {
-			case 1:		
+			case 1:	
+				/*	
 				json_object_object_add(instructionJ, "request", json_object_new_string("GET_CHAT"));
 				json_object_object_add(instructionJ, "body", json_object_new_string("all"));
 				
@@ -217,7 +225,7 @@ int main(int argc, char *argv[])
 				
 				send(socketfd, instruction, strlen(instruction), 0);
 				json_object_put(instructionJ);
-				
+				*/
 				pthread_t send_msg_thread;
 				if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
 					printf("ERROR: pthread\n");
@@ -235,7 +243,15 @@ int main(int argc, char *argv[])
 						printf("\nBye\n");
 						break;
 					}
-				}            
+				}         
+				
+				json_object_object_add(instructionJ, "request", json_object_new_string("END_CONEX"));				
+				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				
+				send(socketfd, instruction, strlen(instruction), 0);
+				close(socketfd); 
+				repetir = 0;
+				
 				break;
 			case 2:             
 				printf("Nombre del usuario para entablar conversacion: ");
@@ -275,6 +291,8 @@ int main(int argc, char *argv[])
             			
 				break;
 			case 4:
+				bzero(buff_out, BUFFER_SZ);
+				size_t users_in_chat;
 				json_object_object_add(instructionJ, "request", json_object_new_string("GET_USER"));
 				json_object_object_add(instructionJ, "body", json_object_new_string("all"));
 				
@@ -283,6 +301,30 @@ int main(int argc, char *argv[])
 				
 				send(socketfd, instruction, strlen(instruction), 0);
 				json_object_put(instructionJ);
+				receive = recv(socketfd, buff_out, BUFFER_SZ, 0);		
+				if(receive > 0){
+					json_instruction = buff_out;
+					struct json_object *response = json_object_new_object();
+					response = json_tokener_parse(json_instruction);
+					
+					struct json_object *code;
+					json_object_object_get_ex(response, "code", &code);
+					
+					struct json_object *body;
+					json_object_object_get_ex(response, "body", &body);
+					
+					struct json_object *user_characteristics;
+					struct json_object *user_name;
+					struct json_object *user_status;
+					users_in_chat = json_object_array_length(body);			
+					
+					for(int i=0;i<users_in_chat;i++) {
+						user_characteristics = json_object_array_get_idx(body, i);
+						user_name = json_object_array_get_idx(user_characteristics, 0);
+						user_status = json_object_array_get_idx(user_characteristics, 1);
+						printf("%lu. Nombre-> %s  Estado-> %s\n",i+1,json_object_get_string(user_name), json_object_get_string(user_status));
+					}		
+				}
 				break;
 			case 5:
 				char getuserinfo[200];
