@@ -16,9 +16,7 @@
 
 static _Atomic unsigned int cli_count = 0;
 static int uid = 10;
-char *json_instruction;
 char *connection_date;
-char *response;
 
 /* Client structure */
 typedef struct{
@@ -27,7 +25,7 @@ typedef struct{
 	int uid;
 	char name[32];
 	char ctime[32];
-	int ustatus;
+	char ustatus[32];
 } client_t;
 
 client_t *clients[MAX_CLIENTS];
@@ -110,7 +108,12 @@ void *handle_client(void *arg){
 	char buff_out[BUFFER_SZ];
 	char *name;
 	char *connection_date;
+	char *uinterest;
+	char *nstatus;
+	int *rcode;
 	int leave_flag = 0;
+	char *json_instruction;
+	char *response;
 
 	cli_count++;
 	client_t *cli = (client_t *)arg;
@@ -118,6 +121,7 @@ void *handle_client(void *arg){
 	while(1){
 		bzero(buff_out, BUFFER_SZ);
 		char *opcion;
+		rcode = 200;
 		if (leave_flag) {
 			break;
 		}
@@ -133,36 +137,68 @@ void *handle_client(void *arg){
 			struct json_object *body;
 			json_object_object_get_ex(instruction, "body", &body);
 			
-			printf("%s\n", json_object_get_string(request));
-			printf("\n");
 			opcion = json_object_get_string(request);
 			printf("%s\n", opcion);
 			printf("\n");
 			
-			if(strcmp(opcion, "INIT_CONEX") == 0){		
+			if(strcmp(opcion, "INIT_CONEX") == 0){	
 				name = json_object_get_string(json_object_array_get_idx(body, 0));
 				strcpy(cli->name, name);
 				
-				connection_date = json_object_get_string(json_object_array_get_idx(body, 1));
-				strcpy(cli->ctime, connection_date);
+				for(int i=0; i<MAX_CLIENTS; ++i){
+					if(clients[i]){
+						if(strcmp(clients[i]->name, name) == 0 && cli->uid != clients[i]->uid){
+							rcode = 101;												
+						}
+					}
+				}
 				
-				printf("Name of user: %s\n",cli->name);
-				printf("Se unio a las: %s\n",cli->ctime);
+				if(rcode == 200){								
+					connection_date = json_object_get_string(json_object_array_get_idx(body, 1));
+					strcpy(cli->ctime, connection_date);	
+				}
 				
 				struct json_object *instructionJ = json_object_new_object();
+				json_object_object_add(instructionJ, "code", json_object_new_int(rcode));
 				json_object_object_add(instructionJ, "response", json_object_new_string("INIT_CONEX"));
-				json_object_object_add(instructionJ, "code", json_object_new_int(200));
-				
 				response = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
-				printf("SSocket %d\n",cli->sockfd);
-				send(cli->sockfd, response, strlen(response), 0);
-				
+				send(cli->sockfd, response, strlen(response), 0);				
 			}
 			if(strcmp(opcion, "GET_CHAT") == 0){
 				printf("Noches\n");
 			}
 			if(strcmp(opcion, "PUT_STATUS") == 0){
-				printf("Dias\n");
+				nstatus = json_object_get_string(body);
+				strcpy(cli->ustatus, nstatus);
+				struct json_object *instructionJ = json_object_new_object();
+				json_object_object_add(instructionJ, "response", json_object_new_string("PUT_STATUS"));
+				json_object_object_add(instructionJ, "code", json_object_new_int(200));
+				
+				response = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+				send(cli->sockfd, response, strlen(response), 0);
+			}
+			if(strcmp(opcion, "GET_USER") == 0){
+				rcode = 102;
+				uinterest = json_object_get_string(body);
+				struct json_object *instructionJ = json_object_new_object();
+				if(strcmp(uinterest, "all") == 0){
+				}else{
+					for(int i=0; i<MAX_CLIENTS; ++i){
+						if(clients[i]){
+							if(strcmp(clients[i]->name, uinterest) == 0){	
+								rcode = 200;												
+								struct json_object *body = json_object_new_array();
+								json_object_array_add(body,json_object_new_string("127.0.0.1"));
+								json_object_array_add(body,json_object_new_string(clients[i]->ustatus));
+								json_object_object_add(instructionJ,"body", body);	
+							}
+						}
+					}										
+					json_object_object_add(instructionJ, "code", json_object_new_int(rcode));
+					json_object_object_add(instructionJ, "response", json_object_new_string("GET_USER"));
+					response = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+					send(cli->sockfd, response, strlen(response), 0);
+				}
 			}
 			if(strcmp(opcion, "END_CONEX") == 0){
 				leave_flag = 1;
@@ -286,7 +322,7 @@ int main(int argc, char **argv){
 		cli->address = cli_addr;
 		cli->sockfd = connfd;
 		cli->uid = uid++;
-		cli->ustatus = 0;
+		strcpy(cli->ustatus, "0");
 
 		/* Add client to the queue and fork thread */
 		queue_add(cli);

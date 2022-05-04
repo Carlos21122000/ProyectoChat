@@ -21,11 +21,10 @@ char *name;
 char *connection_date;
 char *message_date;
 char *instruction;
-char username2chat[200];
-char *getuserinfo;
+char *json_instruction;
 char buff_out[BUFFER_SZ];
 int socketfd = 0;
-int estado[5];
+char estado[10];
 volatile sig_atomic_t flag = 0;
 
 
@@ -104,8 +103,15 @@ int main(int argc, char *argv[])
 	int opcion;
 	int repetir = 1;
 	int result;
+	int *rcode;
+	
+	char *StatusFromIU;
 	
 	char *host;
+	
+	char username2chat[200];
+	
+	char statusc[32];
 	int listenfd = 0, connfd = 0;
     	struct sockaddr_in serverAddr;
     	struct sockaddr_in cliAddr;
@@ -139,28 +145,6 @@ int main(int argc, char *argv[])
 	serverAddr.sin_addr.s_addr = inet_addr(host);
 	serverAddr.sin_port = htons(port);
 	
-	
-	/*
-	struct json_object *jobj = json_object_new_object();
-	struct json_object *jarray = json_object_new_array();
-	struct json_object *jstring1 = json_object_new_string("c");
-	struct json_object *jstring2 = json_object_new_string("c++");
-	const char *question = "Mum, clouds hide alien spaceships don't they ?";
-	const char *answer = "Of course not! (\"sigh\")";
-	
-	json_object_array_add(jarray,jstring1);
-	json_object_array_add(jarray,jstring2);
-	json_object_object_add(jobj,"Categories", jarray);
-	json_object_object_add(jobj, "question", json_object_new_string(question));
-	json_object_object_add(jobj, "answer", json_object_new_string(answer));
-	 
-	printf("jobj from str:\n---\n%s\n---\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
-	
-	jobj = json_object_new_object();
-	json_object_object_add(jobj,"Categories", jarray);
-	printf("jobj from str:\n---\n%s\n---\n", json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
-	*/
-	
 	socketfd = socket(AF_INET, SOCK_STREAM, 0);
 				
 	int err = connect(socketfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
@@ -181,19 +165,33 @@ int main(int argc, char *argv[])
 	send(socketfd, instruction, strlen(instruction), 0);
 	json_object_put(init_conection);
 	
+	
 	int receive = recv(socketfd, buff_out, BUFFER_SZ, 0);		
 	if(receive > 0){
-		printf("%s ", buff_out);
+		json_instruction = buff_out;
+		struct json_object *response= json_object_new_object();
+		response = json_tokener_parse(json_instruction);
+		
+		struct json_object *code;
+		json_object_object_get_ex(response, "code", &code);
+		rcode = json_object_get_int(code);
+		
+		if(rcode == 101){
+			struct json_object *instructionJ = json_object_new_object();
+			printf("\nEse nombre ya esta en uso. Feliz dia...\n");
+			
+			json_object_object_add(instructionJ, "request", json_object_new_string("END_CONEX"));				
+			instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+			
+			send(socketfd, instruction, strlen(instruction), 0);
+			close(socketfd); 
+			return 0;
+		}else{
+			printf("\nHa ingresado al chat. \n");
+		}
 	}
 	bzero(buff_out, BUFFER_SZ);
-	/*printf("jobj from str:\n---\n%s\n---\n", instruction);*/
-	
-	/*
-	struct json_object *prueba_d = json_object_new_object();
-	prueba_d = json_tokener_parse(instruction);
-	printf("jobj from str:\n---\n%s\n---\n", json_object_to_json_string_ext(prueba_d, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
-	*/
-	
+		
 	while (repetir == 1) {
 		struct json_object *instructionJ = json_object_new_object();
 		// Texto del menú que se verá cada vez
@@ -255,31 +253,26 @@ int main(int argc, char *argv[])
 			case 3:   
 				// Lista de instrucciones de la opción 3   
 				printf("\nOpciones de status");
-				printf("\n1. OCUPADO");
-				printf("\n2. ACTIVO");
-				printf("\n3. INACTIVO");  
+				printf("\n0. OCUPADO");
+				printf("\n1. ACTIVO");
+				printf("\n2. INACTIVO");  
 				printf("\nIngrese una opcion: ");           
-            			scanf("%d", &estado);
-            			
+            			scanf("%s", &estado);
+            		
             			json_object_object_add(instructionJ, "request", json_object_new_string("PUT_STATUS"));
-				json_object_object_add(instructionJ, "body", json_object_new_int(*estado));
+				json_object_object_add(instructionJ, "body", json_object_new_string(estado));
 				
 				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
 				
 				send(socketfd, instruction, strlen(instruction), 0);
 				json_object_put(instructionJ);
-            			
-				switch(*estado){
-					case 1:
-						printf("\nAhora su estado es OCUPADO");
-						break;
-					case 2:
-						printf("\nAhora su estado es ACTIVO");						
-						break;
-					case 3:
-						printf("\nAhora su estado es INACTIVO");						
-						break;
+				
+				receive = recv(socketfd, buff_out, BUFFER_SZ, 0);		
+				if(receive > 0){
+					printf("Cambio de estado realizado");
 				}
+				bzero(buff_out, BUFFER_SZ);
+            			
 				break;
 			case 4:
 				json_object_object_add(instructionJ, "request", json_object_new_string("GET_USER"));
@@ -292,7 +285,9 @@ int main(int argc, char *argv[])
 				json_object_put(instructionJ);
 				break;
 			case 5:
-				printf("Nombre del usuario para entablar conversacion: ");
+				char getuserinfo[200];
+				bzero(buff_out, BUFFER_SZ);
+				printf("Nombre del usuario para obtener su informacion: ");
 				scanf("%s", &getuserinfo);
 				json_object_object_add(instructionJ, "request", json_object_new_string("GET_USER"));
 				json_object_object_add(instructionJ, "body", json_object_new_string(getuserinfo));
@@ -300,7 +295,28 @@ int main(int argc, char *argv[])
 				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
 				
 				send(socketfd, instruction, strlen(instruction), 0);
-				json_object_put(instructionJ);             
+				json_object_put(instructionJ);   
+				
+				receive = recv(socketfd, buff_out, BUFFER_SZ, 0);		
+				if(receive > 0){
+					json_instruction = buff_out;
+					struct json_object *response = json_object_new_object();
+					response = json_tokener_parse(json_instruction);
+					
+					struct json_object *code;
+					json_object_object_get_ex(response, "code", &code);
+					rcode = json_object_get_int(code);
+					
+					if(rcode == 102){						
+						printf("\nEse usuario no existe");
+					}else{
+						struct json_object *body;
+						json_object_object_get_ex(response, "body", &body);
+						
+						StatusFromIU = json_object_get_string(json_object_array_get_idx(body, 1));
+						printf("\nUsuario:%s\nEstado:%s", getuserinfo, StatusFromIU);
+					}					
+				}				         
 				break;
 			case 6:
 				// Lista de instrucciones de la opción 6                
