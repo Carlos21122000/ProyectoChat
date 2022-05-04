@@ -166,16 +166,34 @@ void *handle_client(void *arg){
 			}
 			if(strcmp(opcion, "POST_CHAT") == 0){
 				char message_all[8000];
+				char separador1[10] = "Mensaje: ";
+				char separador2[10] = "Por: ";
+				char separador3[10] = "Fecha: ";
+				char separador4[10] = "\n";
 				strcpy(message_all, json_object_get_string(json_object_array_get_idx(body, 0)));
+
 				printf("%s\n", message_all);
 				if(strcmp(message_all, "salir") == 0){
 					sprintf(message_all, "%s ha salido del chat\n", cli->name);
 					printf("%s\n", message_all);
 					send_message(message_all, cli->uid);
 				}else{
+					bzero(message_all, 8000);
+					strcat(message_all, separador1);				
+					strcat(message_all, json_object_get_string(json_object_array_get_idx(body, 0)));
+					strcat(message_all, separador4);
+					
+					strcat(message_all, separador2);				
+					strcat(message_all, json_object_get_string(json_object_array_get_idx(body, 1)));
+					strcat(message_all, separador4);
+					
+					strcat(message_all, separador3);				
+					strcat(message_all, json_object_get_string(json_object_array_get_idx(body, 2)));
+					
 					send_message(message_all, cli->uid);
 					str_trim_lf(message_all, strlen(message_all));
 					printf("%s -> %s\n", message_all, cli->name);
+					bzero(message_all, 8000);
 				}				
 			}
 			if(strcmp(opcion, "PUT_STATUS") == 0){
@@ -232,47 +250,6 @@ void *handle_client(void *arg){
 		}
 		bzero(buff_out, BUFFER_SZ);
 	}
-	/*
-	// Name
-	if(recv(cli->sockfd, name, 32, 0) <= 0 || strlen(name) <  2 || strlen(name) >= 32-1){
-		printf("Didn't enter the name.\n");
-		leave_flag = 1;
-	} else{
-		strcpy(cli->name, name);
-		sprintf(buff_out, "%s has joined\n", cli->name);
-		printf("%s", buff_out);
-		send_message(buff_out, cli->uid);
-	}
-
-	bzero(buff_out, BUFFER_SZ);
-
-	while(1){
-		if (leave_flag) {
-			break;
-		}
-
-		int receive = recv(cli->sockfd, buff_out, BUFFER_SZ, 0);
-		if (receive > 0){
-			if(strlen(buff_out) > 0){
-				send_message(buff_out, cli->uid);
-
-				str_trim_lf(buff_out, strlen(buff_out));
-				printf("%s -> %s\n", buff_out, cli->name);
-			}
-		} else if (receive == 0 || strcmp(buff_out, "salir") == 0){
-			sprintf(buff_out, "%s has left\n", cli->name);
-			printf("%s", buff_out);
-			send_message(buff_out, cli->uid);
-			leave_flag = 1;
-		} else {
-			printf("ERROR: -1\n");
-			leave_flag = 1;
-		}
-
-		bzero(buff_out, BUFFER_SZ);
-	}
-	
-	*/
 
 	/* Delete client from queue and yield thread */
 	close(cli->sockfd);

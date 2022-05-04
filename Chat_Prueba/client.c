@@ -216,16 +216,7 @@ int main(int argc, char *argv[])
 		
 
 		switch (opcion) {
-			case 1:	
-				/*	
-				json_object_object_add(instructionJ, "request", json_object_new_string("GET_CHAT"));
-				json_object_object_add(instructionJ, "body", json_object_new_string("all"));
-				
-				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
-				
-				send(socketfd, instruction, strlen(instruction), 0);
-				json_object_put(instructionJ);
-				*/
+			case 1:					
 				pthread_t send_msg_thread;
 				if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
 					printf("ERROR: pthread\n");
@@ -361,7 +352,7 @@ int main(int argc, char *argv[])
 				}				         
 				break;
 			case 6:
-				// Lista de instrucciones de la opciÃ³n 6                
+				// Lista de instrucciones de la opción 6                
 			        printf("\n*********************************Bienvenido*********************************"); 
 			        printf("\n");
 			        printf("\nel cliente se ejecuta por medio de: <nombredelcliente> <nombredeusuario> <IPdelservidor> <puertodelservidor> ");    
@@ -378,8 +369,8 @@ int main(int argc, char *argv[])
 			        printf("\nregistro de usuarios"); 
 			        printf("\neliberacion de usuarios");
 			        printf("\nManejo de status");
-			        printf("\nRespuesta a solicitudes de informacion");    
-				break;              
+			        printf("\nRespuesta a solicitudes de informacion");      
+				break;
 			case 7:  
 				json_object_object_add(instructionJ, "request", json_object_new_string("END_CONEX"));				
 				instruction = json_object_to_json_string_ext(instructionJ, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
